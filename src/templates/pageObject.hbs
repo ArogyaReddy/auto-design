@@ -1,0 +1,12 @@
+const { expect } = require('@playwright/test');
+
+class {{pageClassName}} {
+constructor(page) {
+this.page = page;
+{{#each locators}}
+this.{{this.name}} = page.locator('{{{this.selector}}}');
+{{/each}}
+}
+}
+
+module.exports = { {{pageClassName}} };
