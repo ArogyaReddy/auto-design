@@ -15,9 +15,9 @@ class CodeGenStrategy {
 
   async createTestPlan(url, featureName) {
     const tempFile = path.join(os.tmpdir(), `autodesign-flow-${Date.now()}.js`);
-    console.log(`\n🚀 Launching Playwright's Official CodeGen Recorder for: ${url}`);
-    console.log(`   Please perform your actions in the new browser window.`);
-    console.log(`   => Close the browser when you are finished recording.`);
+    console.log(`\n🚀 [AutoGen] Launching Playwright's CodeGen Recorder for App/URL : \n ${url}`);
+    console.log(`\n🚀 [AutoGen] Please perform your actions in the new browser window.`);
+    console.log(`\n🚀 [AutoGen] Close the browser when you are finished recording.`);
 
     spawnSync(`npx playwright codegen --output="${tempFile}" "${url}"`, { shell: true, stdio: 'inherit' });
 
@@ -26,7 +26,7 @@ class CodeGenStrategy {
       return null;
     }
 
-    console.log('\n✅ Recording finished. Analyzing captured steps...');
+    console.log('\n✅ [AutoRecorder] Recording finished. \n✅ [AutoDesign] Analyzing captured steps...');
     const generatedCode = fs.readFileSync(tempFile, 'utf8');
     fs.removeSync(tempFile);
 

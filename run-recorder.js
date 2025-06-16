@@ -26,7 +26,7 @@ async function main() {
   const START_URL = argv.url;
   const FEATURE_NAME = argv.name;
 
-  console.log(`🚀 Starting Test Generation for feature: ${FEATURE_NAME}`);
+  console.log(`🚀 [AutoGen] Starting Test Generation for feature: ${FEATURE_NAME}`);
   
   const strategy = new CodeGenStrategy();
   const designer = new AutoDesign(strategy);

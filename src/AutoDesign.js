@@ -25,7 +25,7 @@ class AutoDesign {
   async generate(input, featureName) {
     const plan = await this.strategy.createTestPlan(input, featureName);
     if (!plan) return;
-    console.log('[AutoDesign] Generating features, steps, pages, and tests from analysis...');
+    console.log('\n✅ [AutoDesign] Generating features, steps, pages, and tests from analysis...');
     const output = this._generateCode(plan);
     this._writeFiles(output, plan);
   }
@@ -33,7 +33,7 @@ class AutoDesign {
   _generateCode(plan) {
     const pageClassName = `${plan.featureName}Page`;
     const pageInstanceName = `${plan.featureName.charAt(0).toLowerCase() + plan.featureName.slice(1)}Page`;
-    console.log('[AutoCoder] created the code and test files...');
+    console.log('\n✅ [AutoCoder] Created the code and test files...');
     return {
       feature: this.templates.feature(plan),
       pageObject: this.templates.pageObject({ ...plan, pageClassName }),
