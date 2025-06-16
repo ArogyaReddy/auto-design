@@ -1,0 +1,6 @@
+// examples/jira-story.txt
+Feature: Product Purchase
+
+As a logged-in user,
+I want to add a product to my cart and proceed to checkout.
+I should be able to click on the "Sauce Labs Backpack", click "Add to cart", then click the shopping cart icon, and finally click the "Checkout" button.

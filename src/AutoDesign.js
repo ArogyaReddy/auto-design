@@ -1,4 +1,4 @@
-const fs = require('fs');
+const fs = require('fs-extra');
 const path = require('path');
 const Handlebars = require('handlebars');
 const { exec } = require('child_process');
@@ -22,48 +22,48 @@ class AutoDesign {
     };
   }
 
-  async generate(input, sourceName) {
-    const plan = await this.strategy.createTestPlan(input);
-    if (!plan || !plan.featureName) return;
+  async generate(input, featureName) {
+    const plan = await this.strategy.createTestPlan(input, featureName);
+    if (!plan) return;
+    console.log('[AutoDesign] Generating features, steps, pages, and tests from analysis...');
     const output = this._generateCode(plan);
     this._writeFiles(output, plan);
-    const safeFeatureName = plan.featureName.replace(/[^a-zA-Z0-9]/g, '');
-    console.log(`✅ Success! Test files generated in output/${safeFeatureName}`);
   }
 
   _generateCode(plan) {
-    const featureName = plan.featureName.replace(/[^a-zA-Z0-9]/g, '');
-    const pageClassName = `${featureName.charAt(0).toUpperCase() + featureName.slice(1)}Page`;
+    const pageClassName = `${plan.featureName}Page`;
+    const pageInstanceName = `${plan.featureName.charAt(0).toLowerCase() + plan.featureName.slice(1)}Page`;
+    console.log('[AutoCoder] created the code and test files...');
     return {
       feature: this.templates.feature(plan),
       pageObject: this.templates.pageObject({ ...plan, pageClassName }),
-      steps: this.templates.steps({ ...plan, pageClassName }),
+      steps: this.templates.steps({ ...plan, pageClassName, pageInstanceName }),
       test: this.templates.test(plan),
     };
   }
 
   _writeFiles(output, plan) {
-    const safeFeatureName = plan.featureName.replace(/[^a-zA-Z0-9]/g, '');
-    const baseOutputDir = path.join(process.cwd(), 'output', safeFeatureName);
-    const featuresDir = path.join(baseOutputDir, 'Features');
-    const stepsDir = path.join(baseOutputDir, 'Steps');
-    const pagesDir = path.join(baseOutputDir, 'Pages');
-    const testsDir = path.join(baseOutputDir, 'Tests');
-    [featuresDir, stepsDir, pagesDir, testsDir].forEach(dir => fs.mkdirSync(dir, { recursive: true }));
-    fs.writeFileSync(path.join(featuresDir, `${safeFeatureName}.feature`), output.feature);
-    fs.writeFileSync(path.join(pagesDir, `${safeFeatureName}.page.js`), output.pageObject);
-    fs.writeFileSync(path.join(stepsDir, `${safeFeatureName}.steps.js`), output.steps);
-    fs.writeFileSync(path.join(testsDir, `${safeFeatureName}.test.js`), output.test);
-    this._openFolder(baseOutputDir);
+    const baseOutputDir = path.join(process.cwd(), 'output', plan.featureName);
+    fs.removeSync(baseOutputDir);
+    const dirs = {
+      Features: path.join(baseOutputDir, 'Features'),
+      Steps: path.join(baseOutputDir, 'Steps'),
+      Pages: path.join(baseOutputDir, 'Pages'),
+      Tests: path.join(baseOutputDir, 'Tests'),
+    };
+    Object.values(dirs).forEach(dir => fs.mkdirSync(dir, { recursive: true }));
+    fs.writeFileSync(path.join(dirs.Features, `${plan.featureName}.feature`), output.feature);
+    fs.writeFileSync(path.join(dirs.Pages, `${plan.featureName}.page.js`), output.pageObject);
+    fs.writeFileSync(path.join(dirs.Steps, `${plan.featureName}.steps.js`), output.steps);
+    fs.writeFileSync(path.join(dirs.Tests, `${plan.featureName}.test.js`), output.test);
+    // this._openFolder(baseOutputDir);
   }
  
   _openFolder(folderPath) {
     const command = process.platform === 'darwin' ? `open "${folderPath}"` : process.platform === 'win32' ? `explorer "${folderPath}"` : `xdg-open "${folderPath}"`;
     exec(command, (err) => {
-      if (err) console.error(`Failed to open folder: ${err}`);
-      else console.log(`\n🚀 Automatically opening output folder: ${folderPath}`);
+      if (!err) console.log(`\n🚀 Automatically opening output folder: ${folderPath}`);
     });
   }
 }
-
 module.exports = { AutoDesign };

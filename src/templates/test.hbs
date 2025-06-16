@@ -1,3 +1,4 @@
+// src/templates/test.hbs (Final Verified Version)
 const { test } = require('@playwright/test');
 const { execSync } = require('child_process');
 const path = require('path');
@@ -5,10 +6,12 @@ const path = require('path');
 test.describe('{{{featureName}}}', () => {
 test(`Run Cucumber Feature: {{{scenarioName}}}`, () => {
 const featureFile = path.join(__dirname, '../Features', '{{featureName}}.feature');
+
 try {
-execSync(`npx cucumber-js "${featureFile}"`, { encoding: 'utf8', stdio: 'inherit' });
+// THE FIX IS HERE: This command forces the child process to output color.
+execSync(`FORCE_COLOR=1 npx cucumber-js "${featureFile}"`, { encoding: 'utf8', stdio: 'inherit' });
 } catch (error) {
-throw new Error('Cucumber feature execution failed. See the report and logs above for details.');
+throw new Error('Cucumber feature execution failed.');
 }
 });
 });

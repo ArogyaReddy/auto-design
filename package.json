@@ -1,22 +1,36 @@
 {
-    "name": "auto-design",
-    "version": "1.0.0",
-    "description": "",
-    "main": "run.js",
-    "scripts": {
-      "test": "npx playwright test"
-    },
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
-    "dependencies": {
-      "@cucumber/cucumber": "^10.8.0",
-      "@playwright/test": "^1.44.1",
-      "dotenv": "^16.4.5",
-      "handlebars": "^4.7.8",
-      "playwright": "^1.44.1"
-    },
-    "devDependencies": {
-      "@types/node": "^20.14.2"
-    }
+  "name": "auto-design",
+  "version": "1.0.0",
+  "description": "A tool to generate Playwright/Cucumber tests using the official Playwright CodeGen recorder.",
+  "main": "run-recorder.js",
+  "scripts": {
+    "record": "node run-recorder.js",
+    "test": "npx playwright test",
+    "codegen": "node run.js",
+    "codegen:ui": "node run.js --ui",
+    "browser-to-code": "node run.js record --url 'https://online-iat.adp.com/signin/v1/?APPID=RUN&productId=7bf1242e-2ff0-e324-e053-37004b0bc98c' --name 'myFlow'",
+    "playwright-to-code": "node run-recorder.js record --url 'https://online-iat.adp.com/signin/v1/?APPID=RUN&productId=7bf1242e-2ff0-e324-e053-37004b0bc98c' --name 'myFlow'",
+    "jira-to-code": "node run-recorder.js text --file './examples/jira-story.txt' --name 'JiraPurchaseFlow'",
+    "image-to-code": "node run-recorder.js image --path './examples/login-screenshot.png' --name 'ScreenshotLogin'",
+    "text-to-code": "node run-recorder.js record --url 'https://online-iat.adp.com/signin/v1/?APPID=RUN&productId=7bf1242e-2ff0-e324-e053-37004b0bc98c' --name 'myFlow'"
+  },
+  "keywords": [
+    "playwright",
+    "cucumber",
+    "codegen"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@cucumber/cucumber": "^10.8.0",
+    "@playwright/test": "^1.44.1",
+    "dotenv": "^16.5.0",
+    "fs-extra": "^11.2.0",
+    "handlebars": "^4.7.8",
+    "playwright": "^1.44.1",
+    "yargs": "^18.0.0"
+  },
+  "devDependencies": {
+    "@cucumber/pretty-formatter": "^1.0.1"
   }
+}

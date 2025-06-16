@@ -5,17 +5,21 @@ const { RecordingStrategy } = require('./src/strategies/RecordingStrategy.js');
 
 require('dotenv').config();
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
 
 function displayMenu() {
   console.log(`
 ========================================
 🤖 Welcome to the Auto-Design Framework 🤖
 ========================================
-Please choose an action:
+Please choose a mode to run:
 
-[1] Start Interactive Recorder
-[2] Run Generated Tests
+[1] Generate a Static Test (Example)
+[2] Start Interactive Live Recorder
+[3] Run Generated Tests
 
 [q] Quit
   `);
@@ -27,9 +31,13 @@ Please choose an action:
 async function handleChoice(choice) {
   switch (choice) {
     case '1':
-      await runInteractiveRecorder();
+      // This case is left as an example and does not run.
+      console.log("\nThis is a placeholder for a static generator.");
       break;
     case '2':
+      await runInteractiveRecorder();
+      break;
+    case '3':
       await runTests();
       break;
     case 'q':
@@ -55,7 +63,7 @@ async function runInteractiveRecorder() {
     return;
   }
   
-  await designer.generate(startUrl, "RecordedSession");
+  await designer.generate(startUrl, "Live Recording Session");
   console.log('--- Interactive Recorder Finished ---\n');
 }
 
@@ -63,7 +71,7 @@ async function runTests() {
     console.log("\n--- Executing 'npm test' ---");
     try {
         execSync('npm test', { encoding: 'utf8', stdio: 'inherit' });
-        console.log("\n--- ✅ Test run completed. ---");
+        console.log("\n--- ✅ Test run completed successfully. ---");
     } catch (error) {
         console.log("\n--- ❌ Test run finished with errors. ---");
     }

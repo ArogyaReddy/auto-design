@@ -14,7 +14,7 @@ await expect(this.pageObject.{{this.locatorName}}).toBeVisible();
 await this.pageObject.{{this.locatorName}}.click();
 {{else if (eq this.actionType "fill")}}
 await expect(this.pageObject.{{this.locatorName}}).toBeVisible();
-await this.pageObject.{{this.locatorName}}.fill('{{{this.actionValue}}}');
+await this.pageObject.{{this.locatorName}}.fill('{{this.actionValue}}');
 {{/if}}
 });
 {{/if}}

@@ -1,10 +1,13 @@
+// src/templates/pageObject.hbs (Final Corrected Version)
 const { expect } = require('@playwright/test');
 
 class {{pageClassName}} {
 constructor(page) {
 this.page = page;
 {{#each locators}}
-this.{{this.name}} = page.locator('{{{this.selector}}}');
+
+// This locator was generated for the element: '{{this.friendlyName}}'
+this.{{this.name}} = {{{this.selector}}};
 {{/each}}
 }
 }
