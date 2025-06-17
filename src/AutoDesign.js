@@ -1,69 +1,251 @@
 const fs = require('fs-extra');
 const path = require('path');
 const Handlebars = require('handlebars');
-const { exec } = require('child_process');
+const ora = require('ora');
 
+const { getConfig } = require('./core/Config');
+const { getStrategyRegistry } = require('./core/StrategyRegistry');
+const { ErrorHandler, AutoDesignError } = require('./core/ErrorHandler');
+const { FileManager } = require('./core/FileManager');
+const { TestPlanValidator } = require('./core/TestPlanValidator');
+
+/**
+ * Main Auto-Design Framework Class
+ */
 class AutoDesign {
-  constructor(strategy) {
-    if (!strategy) throw new Error('A strategy must be provided.');
-    this.strategy = strategy;
-    this.templates = this._loadTemplates();
-    Handlebars.registerHelper('eq', (v1, v2) => v1 === v2);
-    Handlebars.registerHelper('ne', (v1, v2) => v1 !== v2);
+  constructor(strategy = null, options = {}) {
+    this.config = getConfig();
+    this.strategyRegistry = getStrategyRegistry();
+    this.errorHandler = new ErrorHandler();
+    this.fileManager = new FileManager(this.config);
+    this.validator = new TestPlanValidator();
+    this.templates = null;
+    this.currentStrategy = strategy;
+    
+    // Validate configuration
+    try {
+      this.config.validate();
+    } catch (error) {
+      this.errorHandler.handle(error, { component: 'AutoDesign', action: 'constructor' });
+      throw error;
+    }
+
+    // Load templates
+    this._loadTemplates();
+    
+    // Register Handlebars helpers
+    this._registerHandlebarsHelpers();
+  }
+
+  /**
+   * Generate test files using the specified strategy
+   * @param {any} input - Input for the strategy
+   * @param {string} featureName - Name for the generated feature
+   * @param {Object} options - Additional options
+   * @returns {Promise<Object>} Generation result
+   */
+  async generate(input, featureName, options = {}) {
+    const spinner = ora('Auto-Design is creating files... Please stand by.').start();
+    
+    try {
+      // Determine strategy to use
+      const strategy = this._getStrategy(options.strategy);
+      
+      // Create test plan
+      const plan = await this.errorHandler.wrap(
+        () => strategy.createTestPlan(input, featureName, options),
+        { component: 'Strategy', strategyName: strategy.getName() }
+      )();
+
+      if (!plan) {
+        spinner.warn('Strategy did not produce a valid plan. Skipping generation.');
+        return { success: false, reason: 'No plan generated' };
+      }
+
+      // Validate test plan
+      const validation = this.validator.validateWithSuggestions(plan);
+      if (!validation.success) {
+        spinner.fail('Test plan validation failed.');
+        console.error('Validation errors:', validation.errors);
+        throw new AutoDesignError(`Test plan validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      // Show warnings if any
+      if (validation.warnings.length > 0) {
+        console.warn('⚠️  Validation warnings:', validation.warnings);
+      }
+
+      // Show suggestions if any
+      if (validation.suggestions && validation.suggestions.length > 0) {
+        console.log('💡 Suggestions:', validation.suggestions);
+      }
+
+      // Generate code
+      const output = this._generateCode(plan);
+      
+      // Write files
+      const writeResult = await this.fileManager.writeFiles(output, plan, options.outputDir);
+      
+      spinner.succeed(`Success! Test files generated in ${writeResult.outputDirectory}`);
+      
+      return {
+        success: true,
+        plan,
+        validation,
+        outputDirectory: writeResult.outputDirectory,
+        filesCreated: writeResult.filesCreated
+      };
+
+    } catch (error) {
+      spinner.fail('File generation failed.');
+      this.errorHandler.handle(error, { 
+        component: 'AutoDesign', 
+        action: 'generate',
+        input: typeof input === 'object' ? JSON.stringify(input) : input,
+        featureName 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Register a new strategy
+   * @param {string} name - Strategy name
+   * @param {BaseStrategy} strategyClass - Strategy class
+   * @param {boolean} isDefault - Whether this is the default strategy
+   */
+  registerStrategy(name, strategyClass, isDefault = false) {
+    this.strategyRegistry.register(name, strategyClass, isDefault);
+  }
+
+  /**
+   * Get available strategies
+   * @returns {string[]} Array of strategy names
+   */
+  getAvailableStrategies() {
+    return this.strategyRegistry.getAvailableStrategies();
+  }
+
+  /**
+   * Find the best strategy for input type
+   * @param {string} inputType - Type of input
+   * @returns {BaseStrategy} Best matching strategy
+   */
+  findStrategyForInputType(inputType) {
+    return this.strategyRegistry.findStrategyForInputType(inputType);
   }
 
   _loadTemplates() {
-    const templateDir = path.join(__dirname, 'templates');
-    return {
-      feature: Handlebars.compile(fs.readFileSync(path.join(templateDir, 'feature.hbs'), 'utf8')),
-      pageObject: Handlebars.compile(fs.readFileSync(path.join(templateDir, 'pageObject.hbs'), 'utf8')),
-      steps: Handlebars.compile(fs.readFileSync(path.join(templateDir, 'steps.hbs'), 'utf8')),
-      test: Handlebars.compile(fs.readFileSync(path.join(templateDir, 'test.hbs'), 'utf8'))
-    };
+    try {
+      const templateDir = path.join(__dirname, 'templates');
+      
+      if (!fs.existsSync(templateDir)) {
+        throw new AutoDesignError(`Template directory not found: ${templateDir}`);
+      }
+
+      this.templates = {
+        feature: Handlebars.compile(fs.readFileSync(path.join(templateDir, 'feature.hbs'), 'utf8')),
+        pageObject: Handlebars.compile(fs.readFileSync(path.join(templateDir, 'pageObject.hbs'), 'utf8')),
+        steps: Handlebars.compile(fs.readFileSync(path.join(templateDir, 'steps.hbs'), 'utf8')),
+        test: Handlebars.compile(fs.readFileSync(path.join(templateDir, 'test.hbs'), 'utf8'))
+      };
+    } catch (error) {
+      throw new AutoDesignError(`Failed to load templates: ${error.message}`);
+    }
   }
 
-  async generate(input, featureName) {
-    const plan = await this.strategy.createTestPlan(input, featureName);
-    if (!plan) return;
-    console.log('\n✅ [AutoDesign] Generating features, steps, pages, and tests from analysis...');
-    const output = this._generateCode(plan);
-    this._writeFiles(output, plan);
+  _registerHandlebarsHelpers() {
+    Handlebars.registerHelper('eq', (v1, v2) => v1 === v2);
+    Handlebars.registerHelper('ne', (v1, v2) => v1 !== v2);
+    Handlebars.registerHelper('includes', (array, value) => array && array.includes(value));
+    Handlebars.registerHelper('capitalize', (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : '');
+    Handlebars.registerHelper('escapeSingleQuotes', (str) => str ? str.replace(/'/g, "\\'") : '');
+  }
+
+  _getStrategy(strategyName = null) {
+    if (strategyName) {
+      return this.strategyRegistry.getStrategy(strategyName);
+    }
+    
+    if (this.currentStrategy) {
+      return this.currentStrategy;
+    }
+    
+    return this.strategyRegistry.getDefaultStrategy();
   }
 
   _generateCode(plan) {
-    const pageClassName = `${plan.featureName}Page`;
-    const pageInstanceName = `${plan.featureName.charAt(0).toLowerCase() + plan.featureName.slice(1)}Page`;
-    console.log('\n✅ [AutoCoder] Created the code and test files...');
+    const safeFeatureName = this._toPascalCase(plan.featureName);
+    const pageClassName = `${safeFeatureName}Page`;
+    const pageInstanceName = `${safeFeatureName.charAt(0).toLowerCase() + safeFeatureName.slice(1)}Page`;
+
+    // Create unique steps for template to prevent duplicates
+    const uniqueSteps = this._deduplicateSteps(plan.steps);
+
     return {
-      feature: this.templates.feature(plan),
-      pageObject: this.templates.pageObject({ ...plan, pageClassName }),
-      steps: this.templates.steps({ ...plan, pageClassName, pageInstanceName }),
-      test: this.templates.test(plan),
+      feature: this.templates.feature({ ...plan, featureName: safeFeatureName }),
+      pageObject: this.templates.pageObject({ 
+        ...plan, 
+        pageClassName: pageClassName, 
+        featureName: safeFeatureName 
+      }),
+      steps: this.templates.steps({ 
+        ...plan, 
+        uniqueSteps: uniqueSteps, // Use uniqueSteps instead of steps
+        pageClassName: pageClassName, 
+        pageInstanceName: pageInstanceName, 
+        featureName: safeFeatureName 
+      }),
+      test: this.templates.test({ 
+        ...plan, 
+        featureName: safeFeatureName, 
+        scenarioName: plan.scenarioName 
+      })
     };
   }
 
-  _writeFiles(output, plan) {
-    const baseOutputDir = path.join(process.cwd(), 'output', plan.featureName);
-    fs.removeSync(baseOutputDir);
-    const dirs = {
-      Features: path.join(baseOutputDir, 'Features'),
-      Steps: path.join(baseOutputDir, 'Steps'),
-      Pages: path.join(baseOutputDir, 'Pages'),
-      Tests: path.join(baseOutputDir, 'Tests'),
-    };
-    Object.values(dirs).forEach(dir => fs.mkdirSync(dir, { recursive: true }));
-    fs.writeFileSync(path.join(dirs.Features, `${plan.featureName}.feature`), output.feature);
-    fs.writeFileSync(path.join(dirs.Pages, `${plan.featureName}.page.js`), output.pageObject);
-    fs.writeFileSync(path.join(dirs.Steps, `${plan.featureName}.steps.js`), output.steps);
-    fs.writeFileSync(path.join(dirs.Tests, `${plan.featureName}.test.js`), output.test);
-    // this._openFolder(baseOutputDir);
+  /**
+   * Remove duplicate steps to prevent "Multiple step definitions match" errors
+   * @param {Array} steps - Original steps array
+   * @returns {Array} Deduplicated steps array
+   */
+  _deduplicateSteps(steps) {
+    const seen = new Set();
+    const uniqueSteps = [];
+
+    for (const step of steps) {
+      const stepKey = step.text; // Use the step text as the unique key
+      if (!seen.has(stepKey)) {
+        seen.add(stepKey);
+        uniqueSteps.push(step);
+      }
+    }
+
+    console.log(`🔧 Deduplicated steps: ${steps.length} → ${uniqueSteps.length} (removed ${steps.length - uniqueSteps.length} duplicates)`);
+    return uniqueSteps;
   }
- 
-  _openFolder(folderPath) {
-    const command = process.platform === 'darwin' ? `open "${folderPath}"` : process.platform === 'win32' ? `explorer "${folderPath}"` : `xdg-open "${folderPath}"`;
-    exec(command, (err) => {
-      if (!err) console.log(`\n🚀 Automatically opening output folder: ${folderPath}`);
-    });
+
+  _toPascalCase(str) {
+    if (!str) return 'DefaultFeature';
+    
+    // Check if the string starts with a prefix pattern (3-4 uppercase letters followed by hyphen)
+    const prefixMatch = str.match(/^([A-Z]{3,4})-(.+)$/);
+    
+    if (prefixMatch) {
+      // Preserve the prefix and hyphen, convert only the name part
+      const prefix = prefixMatch[1];
+      const namePart = prefixMatch[2];
+      const pascalCaseName = namePart
+        .replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '')
+        .replace(/^\w/, c => c.toUpperCase());
+      return `${prefix}-${pascalCaseName}`;
+    }
+    
+    // Original behavior for strings without prefix
+    return str
+      .replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '')
+      .replace(/^\w/, c => c.toUpperCase());
   }
 }
+
 module.exports = { AutoDesign };

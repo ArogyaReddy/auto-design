@@ -1,0 +1,94 @@
+// Generated Step Definitions for {{featureName}}
+const { Given, When, Then } = require('@cucumber/cucumber');
+const { expect } = require('@playwright/test');
+const { {{pageClassName}} } = require('../Pages/{{featureName}}.page.js');
+
+Given(`I am on the application`, async function () {
+  this.pageObject = new {{pageClassName}}(this.page);
+  await this.page.goto(process.env.APP_URL || `https://test.com`);
+});
+
+// Dynamically generated step definitions - each step is unique
+{{#each uniqueSteps}}
+{{#if (eq this.keyword "When")}}
+{{#if this.locatorName}}
+When(`{{this.text}}`, async function () {
+  await expect(this.pageObject.{{this.locatorName}}).toBeVisible();
+  {{#if (eq this.actionType "click")}}
+  await this.pageObject.{{this.locatorName}}.click();
+  {{else if (eq this.actionType "fill")}}
+  await this.pageObject.{{this.locatorName}}.fill(`{{this.actionValue}}`);
+  {{else}}
+  // Add your custom action here
+  {{/if}}
+});
+{{else}}
+When(`{{this.text}}`, async function () {
+  // Custom step implementation needed
+  console.log(`Step: {{this.text}}`);
+});
+{{/if}}
+
+{{else if (eq this.keyword "And")}}
+{{#if this.locatorName}}
+When(`{{this.text}}`, async function () {
+  await expect(this.pageObject.{{this.locatorName}}).toBeVisible();
+  {{#if (eq this.actionType "click")}}
+  await this.pageObject.{{this.locatorName}}.click();
+  {{else if (eq this.actionType "fill")}}
+  await this.pageObject.{{this.locatorName}}.fill(`{{this.actionValue}}`);
+  {{else}}
+  // Add your custom action here
+  {{/if}}
+});
+{{else}}
+When(`{{this.text}}`, async function () {
+  // Custom step implementation needed
+  console.log(`Step: {{this.text}}`);
+});
+{{/if}}
+
+{{else if (eq this.keyword "Then")}}
+{{#if this.locatorName}}
+Then(`{{this.text}}`, async function () {
+  await expect(this.pageObject.{{this.locatorName}}).toBeVisible();
+});
+{{else}}
+Then(`{{this.text}}`, async function () {
+  // Verification step - customize as needed
+  await this.page.waitForTimeout(1000);
+  console.log(`Verification: {{this.text}}`);
+});
+{{/if}}
+
+{{/if}}
+{{/each}}
+
+// Common reusable step definitions
+When(`I click on {string}`, async function (elementName) {
+  // Generic click handler for any button/link/element
+  const element = this.page.getByRole('button', { name: elementName })
+    .or(this.page.getByRole('link', { name: elementName }))
+    .or(this.page.getByText(elementName));
+  await expect(element).toBeVisible();
+  await element.click();
+});
+
+When(`I fill in {string} with {string}`, async function (fieldName, value) {
+  // Generic fill handler for any input field
+  const field = this.page.getByLabel(fieldName)
+    .or(this.page.getByPlaceholder(fieldName))
+    .or(this.page.getByRole('textbox', { name: fieldName }));
+  await expect(field).toBeVisible();
+  await field.fill(value);
+});
+
+Then(`I should see {string}`, async function (text) {
+  // Generic visibility check
+  await expect(this.page.getByText(text)).toBeVisible();
+});
+
+Then(`I should be on {string}`, async function (expectedUrl) {
+  // URL verification
+  await expect(this.page).toHaveURL(new RegExp(expectedUrl));
+});

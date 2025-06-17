@@ -3,3 +3,11 @@ node_modules
 output
 playwright-report
 test-results
+
+# User preferences (should not be committed)
+.autodesign-preferences.json
+
+# OCR Language Data Files (auto-downloaded by tesseract.js)
+*.traineddata
+eng.traineddata
+tessdata/

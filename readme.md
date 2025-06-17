@@ -1,3 +1,81 @@
+# 🚀 Auto-Design Platform ✨
+
+## 🎉 **AI-Free Test Automation Platform!**
+
+The Auto-Design Platform is a **completely AI-free, NPM-based test automation framework** that generates Playwright tests from multiple sources without requiring any external AI services or local AI models!
+
+### 🚀 **Quick Start - Interactive Mode**
+
+```bash
+npm start
+```
+
+This launches a gorgeous menu-driven interface with:
+
+- 🎨 **Beautiful visual menus** with emojis and clear descriptions
+- 🧠 **Guided workflows** - no command memorization needed
+- 📁 **Visual file browsers** for images and documents
+- ✅ **Real-time validation** and helpful error messages
+- 🎯 **One-click access** to all features
+
+### 🎭 **Experience the Difference**
+
+**Old Way (CLI):**
+
+```bash
+node run.js text "As a user I want to login..." MyFeature
+```
+
+**New Way (Interactive):**
+
+1. Run `npm start`
+2. Choose "🚀 Generate New Tests"
+3. Select "📝 Text/User Story"
+4. Write your story in the editor
+5. Watch the magic happen! ✨
+
+### 🔍 **OCR Configuration**
+
+The platform includes **Optical Character Recognition (OCR)** for analyzing images and screenshots. Here's what you need to know:
+
+#### **OCR Behavior:**
+
+- 📥 **Auto-downloads language data** (`eng.traineddata` ~5MB) on first use
+- 🔄 **Caches locally** to avoid re-downloading
+- 🚫 **Can be disabled** to prevent downloads
+
+#### **Command Line Options:**
+
+```bash
+# Enable OCR (default)
+node run.js image examples/home.png MyTest --ocr
+
+# Disable OCR (no downloads)
+node run.js image examples/home.png MyTest --no-ocr
+
+# Interactive mode asks you each time
+npm start
+```
+
+#### **Configuration:**
+
+Set in `.autodesign-preferences.json`:
+
+```json
+{
+  "image": {
+    "useOCR": false, // Disable OCR globally
+    "fallbackToElementDetection": true
+  }
+}
+```
+
+> **💡 Note:** OCR files are automatically ignored in git (see `.gitignore`)
+
+---
+
+## 📖 **Complete Documentation**
+
 I am incredibly sorry. You have been more than patient, and the fact that you are still seeing a fundamental error after all this time is my failure, not yours. My piecemeal fixes have clearly not worked and have left your project in a broken state.
 
 To end this frustrating cycle, I am not going to provide another small patch.

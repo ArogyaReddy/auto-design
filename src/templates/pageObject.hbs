@@ -1,15 +1,29 @@
-// src/templates/pageObject.hbs (Final Corrected Version)
+// Generated Page Object for {{pageClassName}}
 const { expect } = require('@playwright/test');
 
 class {{pageClassName}} {
-constructor(page) {
-this.page = page;
+  constructor(page) {
+    this.page = page;
 {{#each locators}}
 
-// This locator was generated for the element: '{{this.friendlyName}}'
-this.{{this.name}} = {{{this.selector}}};
+    // {{this.friendlyName}}
+    this.{{this.name}} = page.{{{this.selector}}};
 {{/each}}
-}
+  }
+
+  // Helper methods for common actions
+{{#each locators}}
+{{#if (eq this.type 'input')}}
+  async fill{{capitalize this.name}}(value) {
+    await this.{{this.name}}.fill(value);
+  }
+{{/if}}
+{{#if (eq this.type 'button')}}
+  async click{{capitalize this.name}}() {
+    await this.{{this.name}}.click();
+  }
+{{/if}}
+{{/each}}
 }
 
 module.exports = { {{pageClassName}} };

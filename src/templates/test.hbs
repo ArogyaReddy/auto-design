@@ -1,17 +1,33 @@
-// src/templates/test.hbs (Final Verified Version)
 const { test } = require('@playwright/test');
 const { execSync } = require('child_process');
 const path = require('path');
 
-test.describe('{{{featureName}}}', () => {
-test(`Run Cucumber Feature: {{{scenarioName}}}`, () => {
-const featureFile = path.join(__dirname, '../Features', '{{featureName}}.feature');
-
-try {
-// THE FIX IS HERE: This command forces the child process to output color.
-execSync(`FORCE_COLOR=1 npx cucumber-js "${featureFile}"`, { encoding: 'utf8', stdio: 'inherit' });
-} catch (error) {
-throw new Error('Cucumber feature execution failed.');
-}
-});
+test.describe('{{featureName}}', () => {
+  test('Run Cucumber Feature: {{scenarioName}}', async () => {
+    const featureFile = path.join(__dirname, '../Features', '{{featureName}}.feature');
+    const stepsFile = path.join(__dirname, '../Steps', '{{featureName}}.steps.js');
+    const worldFile = path.join(__dirname, '../../../support/world.js');
+    const hooksFile = path.join(__dirname, '../../../support/hooks.js');
+    
+    try {
+      // Run cucumber directly without config file to avoid path issues
+      const cmd = [
+        'npx cucumber-js',
+        `"${featureFile}"`,
+        `--require "${worldFile}"`,
+        `--require "${hooksFile}"`, 
+        `--require "${stepsFile}"`,
+        '--format @cucumber/pretty-formatter'
+      ].join(' ');
+      
+      execSync(`FORCE_COLOR=1 ${cmd}`, { 
+        encoding: 'utf8', 
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
+      
+    } catch (error) {
+      throw new Error(`Cucumber feature execution failed: ${error.message}`);
+    }
+  });
 });

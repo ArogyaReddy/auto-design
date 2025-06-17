@@ -1,15 +1,11 @@
-// cucumber.js (Final Verified Version)
 module.exports = {
   default: {
-    // This part tells Cucumber where to find all your code
+    setDefaultTimeout: 60000, // Sets default timeout to 60 seconds
     require: [
         'support/world.js',
         'support/hooks.js',
         'output/**/Steps/*.steps.js'
     ],
-    // This part explicitly tells Cucumber to use the pretty formatter for beautiful output
-    format: [
-      '@cucumber/pretty-formatter'
-    ],
+    format: ['@cucumber/pretty-formatter'],
   },
 };

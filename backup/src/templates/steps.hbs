@@ -1,0 +1,29 @@
+// src/templates/steps.hbs (Final Quote-Escaping Fix)
+const { Given, When, Then } = require('@cucumber/cucumber');
+const { expect } = require('@playwright/test');
+const { {{pageClassName}} } = require('../Pages/{{featureName}}.page.js');
+
+Given('I am on the application', async function () {
+this.pageObject = new {{pageClassName}}(this.page);
+});
+
+{{#each steps}}
+{{#if (ne this.keyword "Given")}}
+When(`{{{this.text}}}`, async function () {
+
+{{#if (eq this.actionType "click")}}
+await expect(this.pageObject.{{this.locatorName}}).toBeVisible();
+await this.pageObject.{{this.locatorName}}.click();
+
+{{else if (eq this.actionType "fill")}}
+await expect(this.pageObject.{{this.locatorName}}).toBeVisible();
+// THIS IS THE FIX: We use our 'escapeSingleQuotes' helper on the value.
+await this.pageObject.{{this.locatorName}}.fill('{{{escapeSingleQuotes this.actionValue}}}');
+
+{{else}}
+await expect(this.pageObject.{{this.locatorName}}).toBeVisible();
+
+{{/if}}
+});
+{{/if}}
+{{/each}}
