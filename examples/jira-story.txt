@@ -1,6 +1,6 @@
 // examples/jira-story.txt
-Feature: Product Purchase
-
-As a logged-in user,
-I want to add a product to my cart and proceed to checkout.
-I should be able to click on the "Sauce Labs Backpack", click "Add to cart", then click the shopping cart icon, and finally click the "Checkout" button.
+Feature: Getting to know you
+When Alex logs into the application,
+Initial model is loaded, with a "START", indicating that the user can start uploading their balance documents.
+Alex can continue through the getting to know you process, and provide their details, such as company name, address, and contact information.
+Alex can upload their balance documents, such as bank statements, tax returns, and other financial documents.Alex can review the information provided and confirm that it is correct.`

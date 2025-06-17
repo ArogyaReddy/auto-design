@@ -175,9 +175,10 @@ class AutoDesign {
   }
 
   _generateCode(plan) {
-    const safeFeatureName = this._toPascalCase(plan.featureName);
-    const pageClassName = `${safeFeatureName}Page`;
-    const pageInstanceName = `${safeFeatureName.charAt(0).toLowerCase() + safeFeatureName.slice(1)}Page`;
+    const safeFeatureName = this._toPascalCase(plan.featureName); // For filenames and folders (keeps prefix)
+    const validJSFeatureName = this._toValidJSIdentifier(plan.featureName); // For JS identifiers (removes hyphen)
+    const pageClassName = `${validJSFeatureName}Page`;
+    const pageInstanceName = `${validJSFeatureName.charAt(0).toLowerCase() + validJSFeatureName.slice(1)}Page`;
 
     // Create unique steps for template to prevent duplicates
     const uniqueSteps = this._deduplicateSteps(plan.steps);
@@ -242,6 +243,33 @@ class AutoDesign {
     }
     
     // Original behavior for strings without prefix
+    return str
+      .replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '')
+      .replace(/^\w/, c => c.toUpperCase());
+  }
+
+  /**
+   * Convert string to valid JavaScript identifier (PascalCase without hyphens)
+   * @param {string} str - String to convert
+   * @returns {string} Valid JavaScript identifier
+   */
+  _toValidJSIdentifier(str) {
+    if (!str) return 'DefaultFeature';
+    
+    // Check if the string starts with a prefix pattern (3-4 uppercase letters followed by hyphen)
+    const prefixMatch = str.match(/^([A-Z]{3,4})-(.+)$/);
+    
+    if (prefixMatch) {
+      // Remove prefix and hyphen, convert only the name part to valid identifier
+      const prefix = prefixMatch[1];
+      const namePart = prefixMatch[2];
+      const pascalCaseName = namePart
+        .replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '')
+        .replace(/^\w/, c => c.toUpperCase());
+      return `${prefix}${pascalCaseName}`;
+    }
+    
+    // Original behavior for strings without prefix - remove all non-alphanumeric characters
     return str
       .replace(/[^a-zA-Z0-9]+(.)?/g, (match, chr) => chr ? chr.toUpperCase() : '')
       .replace(/^\w/, c => c.toUpperCase());

@@ -1,0 +1,7 @@
+I am in home page
+I click on payroll menu
+payroll page is loaded
+i click on run payroll
+I see payroll running status
+once finished, i see payroll successfully completed
+i click back on home

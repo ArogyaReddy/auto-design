@@ -10,7 +10,7 @@ test.describe('{{featureName}}', () => {
     const hooksFile = path.join(__dirname, '../../../support/hooks.js');
     
     try {
-      // Run cucumber directly without config file to avoid path issues
+      // Run cucumber with isolated step file to avoid ambiguous definitions
       const cmd = [
         'npx cucumber-js',
         `"${featureFile}"`,

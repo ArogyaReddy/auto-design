@@ -95,19 +95,34 @@ class AIFreeTextAnalysisStrategy extends BaseStrategy {
    * Analyze text using pure JavaScript algorithms
    */
   async _analyzeWithPureJS(text, featureName, options = {}) {
+    console.log('🔍 Parsing user scenario with intelligent step extraction...');
+    
+    // First, extract the actual user flow steps from the text
+    const extractedSteps = this._extractActualUserSteps(text);
+    
     const analysis = {
       featureName: this._sanitizeFeatureName(featureName),
-      scenarioName: this._generateScenarioName(text),
-      userStory: this._extractUserStory(text),
-      scenarios: this._extractScenarios(text),
-      locators: this._generateSmartLocators(text),
-      steps: [],
+      scenarioName: this._generateScenarioName(text, extractedSteps),
+      userStory: this._extractUserStory(text, extractedSteps),
+      scenarios: [],
+      locators: this._generateSmartLocators(text, extractedSteps),
+      steps: extractedSteps,
       tags: this._extractTags(text),
       metadata: this._extractMetadata(text)
     };
 
-    // Generate steps based on analysis
-    analysis.steps = this._generateStepsFromAnalysis(analysis, text);
+    // Create the main scenario from extracted steps
+    if (extractedSteps.length > 0) {
+      analysis.scenarios = [{
+        name: analysis.scenarioName,
+        steps: extractedSteps,
+        type: 'main'
+      }];
+    } else {
+      // Fallback to old method if no steps extracted
+      analysis.scenarios = this._extractScenarios(text);
+      analysis.steps = this._generateStepsFromAnalysis(analysis, text);
+    }
 
     // Validate and enhance locators
     analysis.locators = this._validateAndFixSelectors(analysis.locators);
@@ -122,9 +137,318 @@ class AIFreeTextAnalysisStrategy extends BaseStrategy {
   }
 
   /**
-   * Extract user story using pattern matching
+   * Extract actual user steps from scenario description
    */
-  _extractUserStory(text) {
+  _extractActualUserSteps(text) {
+    const steps = [];
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    
+    for (let line of lines) {
+      // Skip comments, feature declarations, and other non-step content
+      if (this._shouldSkipLine(line)) {
+        continue;
+      }
+      
+      // Skip empty lines and very short lines
+      if (line.length < 5) continue;
+      
+      // Clean up the line
+      line = line.replace(/^\d+\.?\s*/, ''); // Remove numbers
+      line = line.replace(/^[-*]\s*/, ''); // Remove bullets
+      line = line.replace(/`$/, ''); // Remove trailing backticks
+      line = line.charAt(0).toUpperCase() + line.slice(1); // Capitalize
+      
+      // Convert narrative text to user actions
+      const userActions = this._convertNarrativeToActions(line);
+      
+      for (let actionText of userActions) {
+        // Determine step keyword based on content
+        let keyword = this._determineStepKeyword(actionText, steps);
+        
+        // Clean up step text to be more Gherkin-like
+        let stepText = this._normalizeStepText(actionText);
+        
+        // Only add if it's a meaningful step
+        if (this._isValidStep(stepText)) {
+          steps.push({
+            keyword: keyword,
+            text: stepText,
+            type: this._classifyStepType(stepText),
+            originalLine: line
+          });
+        }
+      }
+    }
+    
+    // Fix step keywords to follow proper Gherkin flow
+    this._fixStepKeywords(steps);
+    
+    return steps;
+  }
+  
+  /**
+   * Check if a line should be skipped during step extraction
+   */
+  _shouldSkipLine(line) {
+    const lowerLine = line.toLowerCase().trim();
+    
+    // Skip comments
+    if (line.startsWith('//') || line.startsWith('#')) {
+      return true;
+    }
+    
+    // Skip feature declarations
+    if (lowerLine.startsWith('feature:')) {
+      return true;
+    }
+    
+    // Skip empty or very short lines
+    if (line.length < 5) {
+      return true;
+    }
+    
+    // Skip file paths
+    if (line.includes('/') && (line.includes('.txt') || line.includes('.js') || line.includes('.feature'))) {
+      return true;
+    }
+    
+    // Skip lines that look like metadata
+    if (lowerLine.startsWith('scenario:') || lowerLine.startsWith('given:') || lowerLine.startsWith('when:') || lowerLine.startsWith('then:')) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Convert narrative text into actionable user steps
+   */
+  _convertNarrativeToActions(text) {
+    const actions = [];
+    
+    // Split on sentence boundaries but keep context
+    const sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
+    
+    for (let sentence of sentences) {
+      // Convert third-person narrative to first-person actions
+      sentence = this._convertToFirstPerson(sentence);
+      
+      // Split complex sentences into multiple actions
+      const subActions = this._splitComplexActions(sentence);
+      actions.push(...subActions);
+    }
+    
+    return actions.filter(action => action.length > 0);
+  }
+  
+  /**
+   * Convert third-person narrative to first-person user actions
+   */
+  _convertToFirstPerson(text) {
+    let converted = text;
+    
+    // Convert "Alex does X" to "I do X" and fix verb forms
+    converted = converted.replace(/^(Alex|the user|user)\s+(can\s+)?/i, 'I ');
+    converted = converted.replace(/^When\s+(Alex|the user|user)\s+/i, 'I ');
+    
+    // Fix verb forms after converting to first person
+    converted = converted.replace(/^I\s+logs\s+/i, 'I log ');
+    converted = converted.replace(/^I\s+continues\s+/i, 'I continue ');
+    converted = converted.replace(/^I\s+provides\s+/i, 'I provide ');
+    converted = converted.replace(/^I\s+uploads\s+/i, 'I upload ');
+    converted = converted.replace(/^I\s+reviews\s+/i, 'I review ');
+    converted = converted.replace(/\btheir\b/gi, 'my');
+    
+    // Convert "Initial model is loaded" to "I see initial model loaded"
+    if (converted.toLowerCase().includes('is loaded') || converted.toLowerCase().includes('model is')) {
+      converted = converted.replace(/^(Initial\s+)?(.+?)\s+is\s+loaded/i, 'I see $2 loaded');
+    }
+    
+    // Convert passive descriptions to active user actions
+    converted = converted.replace(/^(.+?)\s+indicating that the user can\s+(.+)/i, 'I can $2');
+    converted = converted.replace(/with a "([^"]+)"/i, 'with a $1 option');
+    
+    return converted.trim();
+  }
+  
+  /**
+   * Split complex sentences into multiple user actions
+   */
+  _splitComplexActions(text) {
+    const actions = [];
+    
+    // Handle special cases first
+    if (text.toLowerCase().includes('such as') || text.toLowerCase().includes('including')) {
+      // Split lists but keep context
+      const mainAction = text.split(/,?\s*such as\s+|,?\s*including\s+/i)[0];
+      const items = text.split(/,?\s*such as\s+|,?\s*including\s+/i)[1];
+      
+      if (mainAction && mainAction.length > 0) {
+        actions.push(mainAction.trim());
+      }
+      
+      if (items) {
+        // Don't create separate steps for list items unless they're complete actions
+        if (items.match(/^(bank statements|tax returns|financial documents)/i)) {
+          // These are just examples, include with main action
+          if (actions.length > 0) {
+            actions[actions.length - 1] += ` such as ${items.trim()}`;
+          }
+        } else {
+          actions.push(items.trim());
+        }
+      }
+    } else {
+      // Split on conjunctions that indicate separate actions
+      const parts = text.split(/,\s*and\s+(?=(?:Alex|I|the user|user)\s+)/i);
+      
+      if (parts.length === 1) {
+        // No clear splits, just clean up the text
+        let cleaned = text.trim();
+        if (cleaned.length > 0 && this._isActionableText(cleaned)) {
+          actions.push(cleaned);
+        }
+      } else {
+        // Multiple parts found
+        for (let part of parts) {
+          part = part.trim();
+          if (part.length > 0 && this._isActionableText(part)) {
+            // Clean up fragments
+            if (!part.match(/^(I|Alex|the user|user)\s+/i) && part.match(/^(provide|upload|review|confirm|continue)/i)) {
+              part = 'I ' + part;
+            }
+            actions.push(part);
+          }
+        }
+      }
+    }
+    
+    return actions.filter(action => action.length > 0);
+  }
+  
+  /**
+   * Check if text represents an actionable user step
+   */
+  _isActionableText(text) {
+    const lowerText = text.toLowerCase();
+    
+    // Should contain action verbs or be meaningful user steps
+    const actionWords = ['log', 'click', 'upload', 'provide', 'continue', 'review', 'confirm', 'see', 'start', 'enter', 'select', 'navigate'];
+    const hasAction = actionWords.some(word => lowerText.includes(word));
+    
+    // Filter out fragments that are just descriptive lists
+    const isJustList = lowerText.match(/^(company name|address|contact|bank statements|tax returns|documents)$/);
+    
+    return hasAction && !isJustList && text.length > 3;
+  }
+  
+  /**
+   * Determine the appropriate step keyword
+   */
+  _determineStepKeyword(text, existingSteps) {
+    const lowerText = text.toLowerCase();
+    
+    // Given patterns (setup/preconditions)
+    if (lowerText.match(/^(i am|i'm|i start|i begin|initially|first)/)) {
+      return 'Given';
+    }
+    
+    // Then patterns (verification/outcomes)  
+    if (lowerText.match(/^(i see|i should see|i expect|i can see|i verify|i check|i confirm)/)) {
+      return 'Then';
+    }
+    
+    // When patterns (actions) - default for most actions
+    if (lowerText.match(/^(i click|i select|i enter|i type|i fill|i navigate|i go|i press|i choose|i upload|i download|i provide|i continue|i can)/)) {
+      return 'When';
+    }
+    
+    // Use And for continuation of similar step types
+    if (existingSteps.length > 0) {
+      const lastStep = existingSteps[existingSteps.length - 1];
+      if (lastStep.keyword === 'When' && lowerText.match(/^i\s+(can|upload|provide|review)/)) {
+        return 'And';
+      }
+    }
+    
+    // Default to When for actions
+    return 'When';
+  }
+  
+  /**
+   * Check if a step text is valid and meaningful
+   */
+  _isValidStep(stepText) {
+    const lowerText = stepText.toLowerCase();
+    
+    // Too short
+    if (stepText.length < 5) return false;
+    
+    // Just punctuation or fragments
+    if (!stepText.match(/[a-zA-Z]/)) return false;
+    
+    // Common invalid patterns
+    if (lowerText.match(/^(feature|scenario|given|when|then|and|but)[:.]?\s*$/)) return false;
+    
+    // File paths
+    if (stepText.includes('/') && stepText.includes('.')) return false;
+    
+    return true;
+  }
+  
+  /**
+   * Fix step keywords to follow proper Gherkin flow
+   */
+  _fixStepKeywords(steps) {
+    if (steps.length === 0) return;
+    
+    // First step should usually be Given (unless it's clearly an action)
+    if (steps[0].keyword === 'When' && steps[0].text.toLowerCase().match(/^i\s+(am|start|begin)/)) {
+      steps[0].keyword = 'Given';
+    }
+    
+    // Fix subsequent steps
+    for (let i = 1; i < steps.length; i++) {
+      const current = steps[i];
+      const previous = steps[i - 1];
+      
+      // Convert subsequent similar actions to And
+      if (current.keyword === previous.keyword && current.keyword !== 'Given') {
+        current.keyword = 'And';
+      }
+    }
+  }
+  
+  /**
+   * Normalize step text to be more Gherkin-friendly
+   */
+  _normalizeStepText(text) {
+    let normalized = text;
+    
+    // Convert to first person if needed
+    normalized = normalized.replace(/^user /i, 'I ');
+    normalized = normalized.replace(/^the user /i, 'I ');
+    
+    // Fix common patterns
+    normalized = normalized.replace(/^i'm in /i, 'I am on the ');
+    normalized = normalized.replace(/^iam in /i, 'I am on the ');
+    normalized = normalized.replace(/^i am in /i, 'I am on the ');
+    normalized = normalized.replace(/(\w+) page is loaded/i, '$1 page loads');
+    normalized = normalized.replace(/(\w+) page is laoded/i, '$1 page loads'); // Fix typo
+    normalized = normalized.replace(/i see (\w+) running status/i, 'I see the $1 running status');
+    normalized = normalized.replace(/once finished, i see/i, 'I see');
+    normalized = normalized.replace(/sucesfully/i, 'successfully'); // Fix typo
+    
+    // Ensure it doesn't end with a period if it's a step
+    normalized = normalized.replace(/\.$/, '');
+    
+    return normalized;
+  }
+
+  /**
+   * Extract user story using pattern matching with context from steps
+   */
+  _extractUserStory(text, extractedSteps = []) {
     const lowerText = text.toLowerCase();
     
     // Look for explicit user story pattern
@@ -202,13 +526,23 @@ class AIFreeTextAnalysisStrategy extends BaseStrategy {
   }
 
   /**
-   * Infer user story from context clues
+   * Infer user story from context clues and extracted steps
    */
-  _inferUserStoryFromContext(text) {
+  _inferUserStoryFromContext(text, extractedSteps = []) {
     const lowerText = text.toLowerCase();
     
-    // Common application contexts
+    // Analyze extracted steps to understand the flow
+    const stepTexts = extractedSteps.map(step => step.text.toLowerCase()).join(' ');
+    const combinedText = (lowerText + ' ' + stepTexts).toLowerCase();
+    
+    // Common application contexts with enhanced payroll support
     const contexts = [
+      {
+        keywords: ['payroll', 'run payroll', 'payroll menu', 'salary', 'wages', 'pay'],
+        actor: 'HR administrator',
+        action: 'process payroll operations',
+        benefit: 'ensure employees are paid accurately and on time'
+      },
       {
         keywords: ['login', 'sign in', 'authenticate', 'password'],
         actor: 'registered user',
@@ -250,11 +584,17 @@ class AIFreeTextAnalysisStrategy extends BaseStrategy {
         actor: 'administrator',
         action: 'manage employee information',
         benefit: 'maintain accurate records'
+      },
+      {
+        keywords: ['menu', 'navigate', 'home page', 'click'],
+        actor: 'user',
+        action: 'navigate through the application',
+        benefit: 'access different features and functionalities'
       }
     ];
 
     for (const context of contexts) {
-      if (context.keywords.some(keyword => lowerText.includes(keyword))) {
+      if (context.keywords.some(keyword => combinedText.includes(keyword))) {
         return {
           actor: context.actor,
           action: context.action,
@@ -353,7 +693,7 @@ class AIFreeTextAnalysisStrategy extends BaseStrategy {
   /**
    * Generate scenario name from text content
    */
-  _generateScenarioName(text) {
+  _generateScenarioName(text, extractedSteps = []) {
     const lowerText = text.toLowerCase();
     
     // Look for explicit scenario names
@@ -362,7 +702,36 @@ class AIFreeTextAnalysisStrategy extends BaseStrategy {
       return scenarioMatch[1].trim();
     }
 
-    // Generate based on content context
+    // Use extracted steps to generate a meaningful scenario name
+    if (extractedSteps.length > 0) {
+      const actionSteps = extractedSteps.filter(step => 
+        step.keyword === 'When' || step.keyword === 'And' && step.text.toLowerCase().includes('click')
+      );
+      
+      if (actionSteps.length > 0) {
+        const firstAction = actionSteps[0].text.toLowerCase();
+        
+        // Payroll-specific scenarios
+        if (firstAction.includes('payroll')) {
+          return 'Process payroll workflow';
+        }
+        
+        // Navigation scenarios
+        if (firstAction.includes('menu') || firstAction.includes('navigate')) {
+          return 'Navigate and interact with application features';
+        }
+        
+        // Form scenarios
+        if (firstAction.includes('fill') || firstAction.includes('enter')) {
+          return 'Complete data entry workflow';
+        }
+      }
+    }
+
+    // Generate based on content context (fallback)
+    if (lowerText.includes('payroll')) {
+      return 'Process payroll workflow';
+    }
     if (lowerText.includes('login') || lowerText.includes('sign in')) {
       return 'User successfully logs into their account';
     }
@@ -395,12 +764,34 @@ class AIFreeTextAnalysisStrategy extends BaseStrategy {
   /**
    * Generate smart locators based on content analysis
    */
-  _generateSmartLocators(text) {
+  _generateSmartLocators(text, extractedSteps = []) {
     const locators = [];
     const lowerText = text.toLowerCase();
     
-    // Common UI patterns and their locators
+    // Extract locators from steps
+    const stepTexts = extractedSteps.map(step => step.text.toLowerCase()).join(' ');
+    const combinedText = lowerText + ' ' + stepTexts;
+    
+    // Common UI patterns and their locators with payroll support
     const patterns = [
+      {
+        keywords: ['payroll menu', 'payroll', 'menu'],
+        locator: "getByRole('link', { name: /payroll/i })",
+        name: 'payrollMenuLink',
+        type: 'link'
+      },
+      {
+        keywords: ['run payroll', 'payroll button'],
+        locator: "getByRole('button', { name: /run payroll/i })",
+        name: 'runPayrollButton',
+        type: 'button'
+      },
+      {
+        keywords: ['home page', 'home', 'back'],
+        locator: "getByRole('link', { name: /home/i })",
+        name: 'homeLink',
+        type: 'link'
+      },
       {
         keywords: ['username', 'user name', 'login', 'email'],
         locator: "getByLabel('Username')",
@@ -459,7 +850,7 @@ class AIFreeTextAnalysisStrategy extends BaseStrategy {
 
     // Find matching patterns
     for (const pattern of patterns) {
-      if (pattern.keywords.some(keyword => lowerText.includes(keyword))) {
+      if (pattern.keywords.some(keyword => combinedText.includes(keyword))) {
         locators.push({
           name: pattern.name,
           selector: pattern.locator,

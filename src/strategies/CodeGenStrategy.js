@@ -163,7 +163,9 @@ class CodeGenStrategy extends BaseStrategy {
 
       if (!addedLocators.has(rawLocator)) {
         addedLocators.set(rawLocator, action.locatorName);
-        plan.locators.push({ name: action.locatorName, selector: rawLocator, friendlyName: friendlyName });
+        // Clean selector: remove 'page.' prefix if it exists
+        const cleanSelector = this._cleanSelector(rawLocator);
+        plan.locators.push({ name: action.locatorName, selector: cleanSelector, friendlyName: friendlyName });
       }
       
       action.keyword = (lastKeyword === 'When' || lastKeyword === 'And') ? 'And' : 'When';
@@ -352,6 +354,19 @@ class CodeGenStrategy extends BaseStrategy {
     }
     
     return scenarios;
+  }
+
+  /**
+   * Clean selector by removing 'page.' prefix
+   * @param {string} selector - Raw selector from recorded code
+   * @returns {string} Clean selector ready for page object template
+   */
+  _cleanSelector(selector) {
+    // Remove 'page.' prefix if it exists
+    if (selector.startsWith('page.')) {
+      return selector.substring(5); // Remove 'page.' (5 characters)
+    }
+    return selector;
   }
 
   /**
